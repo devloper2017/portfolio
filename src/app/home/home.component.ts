@@ -245,8 +245,8 @@ export class HomeComponent implements OnInit {
     requestAnimationFrame(this.animate.bind(this));
 
     if (!this.isDragging) {
-      this.cube.rotation.x += 0.06;
-      this.cube.rotation.y += 0.06;
+      this.cube.rotation.x += 0.005;
+      this.cube.rotation.y += 0.005;
     }
 
     this.renderer.render(this.scene, this.camera);
