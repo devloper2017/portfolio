@@ -1,5 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import * as THREE from 'three';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
 @Component({
   selector: 'app-home',
@@ -15,6 +17,7 @@ export class HomeComponent implements OnInit {
   private cube!: THREE.Mesh;
   private isDragging = false;
   private previousMousePosition = { x: 0, y: 0 };
+  private isCubeInDownPosition = false;
 
   // Declare mouse property
   private mouse: THREE.Vector2 = new THREE.Vector2();
@@ -22,18 +25,29 @@ export class HomeComponent implements OnInit {
   // Declare raycaster property
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
 
+  private textMesh!: THREE.Mesh;
+  private textIndex = 0;
+  private font: any;  // Treat as any type
+  private text: string = 'WELCOME TO MY PORTFOLIO';  // Text to display
+  private typingSpeed: number = 100; // Speed of typing
+  private currentText: string = ''; // Text that's been typed so far
+  private typingIndex: number = 0;
+
+
   ngOnInit(): void {
     this.initScene();
     this.initCamera();
     this.initRenderer();
     this.createCube();
+    // this.createText();
+    this.loadFontAndCreateText();
     this.addEventListeners();
     this.animate();
   }
 
   private initScene(): void {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#b1cee7'); // Light black background
+    this.scene.background = new THREE.Color('#9050d5d4'); // Light black background
   }
 
   private initCamera(): void {
@@ -45,6 +59,61 @@ export class HomeComponent implements OnInit {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.rendererContainer.nativeElement.appendChild(this.renderer.domElement);
+  }
+
+
+  private loadFontAndCreateText(): void {
+    const loader = new FontLoader();
+    loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+      this.font = font;
+      this.createText();
+      this.animateText();  // Start the typing animation after the font is loaded
+    });
+  }
+
+  private createText(): void {
+    const geometry = new TextGeometry(this.currentText, {
+      font: this.font,
+      size: 0.4,
+      height: 0.1,
+      // curveSegments: 2,
+      // bevelEnabled: true,
+      // bevelSize: 0.5,
+      // bevelThickness: 0.1,
+    });
+
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color('hsla(256, 58.10%, 45.90%, 0.87)'),
+      wireframe: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.textMesh = new THREE.Mesh(geometry, material);
+    this.textMesh.position.set(0, 4, -2); // Positioning the text
+
+    this.scene.add(this.textMesh);
+  }
+
+  private animateText(): void {
+    const interval = setInterval(() => {
+      if (this.typingIndex < this.text.length) {
+        this.currentText += this.text.charAt(this.typingIndex);
+        this.textMesh.geometry = new TextGeometry(this.currentText, {
+          font: this.font,
+          size: 0.4,
+          height: 0.1,
+          // curveSegments: 2,
+          // bevelEnabled: true,
+          // bevelSize: 0.5,
+          // bevelThickness: 0.1,
+        });
+
+        this.textMesh.geometry.center();  // Re-center the text
+        this.typingIndex++;
+      } else {
+        clearInterval(interval); // Stop once all text is typed
+      }
+    }, this.typingSpeed);
   }
 
   private createCube(): void {
@@ -73,6 +142,8 @@ export class HomeComponent implements OnInit {
     // Fill background with the given color
     context.fillStyle = color;
     context.fillRect(0, 0, canvas.width, canvas.height);
+
+    let letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
     // Draw grid lines
     context.strokeStyle = 'black';
@@ -111,14 +182,25 @@ export class HomeComponent implements OnInit {
         context.strokeRect(x, y, step, step);
 
         //number adding
+        // if (color === 'white') {
+        //   const number = row * 3 + col + 1;
+        //   context.fillStyle = 'black';
+        //   context.font = 'bold 40px Arial';
+        //   context.textAlign = 'center';
+        //   context.textBaseline = 'middle';
+        //   context.fillText(number.toString(), x + step / 2, y + step / 2);
+        // }
+
+        // Draw the letter (A, B, C, etc.)
         if (color === 'white') {
-          const number = row * 3 + col + 1;
+          const letter = letters[row * 3 + col];
           context.fillStyle = 'black';
           context.font = 'bold 40px Arial';
           context.textAlign = 'center';
           context.textBaseline = 'middle';
-          context.fillText(number.toString(), x + step / 2, y + step / 2);
+          context.fillText(letter, x + step / 2, y + step / 2);
         }
+
 
         context.restore();
       }
@@ -214,39 +296,151 @@ export class HomeComponent implements OnInit {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-
   private handleClick(event: MouseEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
-    this.mouse.x = (event.clientX / rect.width) * 2 - 1;
-    this.mouse.y = - (event.clientY / rect.height) * 2 + 1;
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     // Set the raycaster's position based on the mouse and camera
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
-    // Perform the intersection check
+    // Perform the intersection check with the cube
     let intersects = this.raycaster.intersectObject(this.cube);
 
-    // Check if there is any intersection
     if (intersects.length > 0) {
-      let object: any = intersects[0].object;
+      let intersectedObject = intersects[0].object as THREE.Mesh;
 
-      // this.applyClickEffect(object);
-    
-    } else {
-      console.log("No intersection detected.");
+      if (intersectedObject.material) {
+        if (Array.isArray(intersectedObject.material)) {
+          const clickedFaceMaterial = intersectedObject.material[intersects[0].face!.materialIndex];
+          if (clickedFaceMaterial instanceof THREE.MeshBasicMaterial && clickedFaceMaterial.map) {
+            this.processClickOnMaterial(clickedFaceMaterial, intersects[0].uv);
+          }
+        } else if (intersectedObject.material instanceof THREE.MeshBasicMaterial && intersectedObject.material.map) {
+          this.processClickOnMaterial(intersectedObject.material, intersects[0].uv);
+        }
+      }
     }
   }
 
+  private processClickOnMaterial(material: THREE.MeshBasicMaterial, uv: THREE.Vector2 | undefined): void {
+    if (!material.map || !uv) return;
 
+    const texture = material.map;
+    const canvas = texture.image as HTMLCanvasElement;
+
+    let pixelData: Uint8ClampedArray | null;
+
+    if (canvas instanceof HTMLCanvasElement) {
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      const pixelX = Math.floor(uv.x * canvas.width);
+      const pixelY = Math.floor((1 - uv.y) * canvas.height);
+      pixelData = context?.getImageData(pixelX, pixelY, 1, 1).data || null;
+    } else {
+      pixelData = this.getPixelDataFromTexture(texture, Math.floor(uv.x * texture.image.width), Math.floor((1 - uv.y) * texture.image.height));
+    }
+
+    if (pixelData) {
+      const isWhite = pixelData[0] == 255 && pixelData[1] == 255 && pixelData[2] == 255 && pixelData[3] == 255;
+
+      if (!isWhite) {
+        console.log('Clicked color is not white.');
+        return;
+      }
+
+      const step = canvas.width / 3; // Grid step size
+      const pixelX = uv.x * canvas.width;
+      const pixelY = (1 - uv.y) * canvas.height;
+      const col = Math.floor(pixelX / step);
+      const row = Math.floor(pixelY / step);
+
+      if (col >= 0 && col < 3 && row >= 0 && row < 3) {
+        const letter = String.fromCharCode(65 + row * 3 + col); // Convert to letter
+        console.log(`Clicked letter: ${letter}`);
+
+        if (letter === 'A') {
+          // this.animateCube();
+          // this.updateTextToAboutMe()
+        }
+
+      }
+    } else {
+      console.log('Pixel data could not be retrieved.');
+    }
+  }
+
+  private getPixelDataFromTexture(texture: THREE.Texture, pixelX: number, pixelY: number): Uint8ClampedArray | null {
+    const image = texture.image as HTMLImageElement | HTMLCanvasElement;
+    const offscreenCanvas = document.createElement('canvas');
+    const context = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+    if (!context) return null;
+
+    offscreenCanvas.width = image.width;
+    offscreenCanvas.height = image.height;
+
+    // Draw the texture image onto the canvas
+    context.drawImage(image, 0, 0);
+
+    // Read the pixel data
+    return context.getImageData(pixelX, pixelY, 1, 1).data;
+  }
+
+  // private animateCube(): void {
+
+  //   if (this.isCubeInDownPosition) {
+  //     console.log("Cube is already in the down position.");
+  //     return; // Do nothing if the cube is already in the down position
+  //   }
+
+  //   const duration = 5000; // Animation duration in milliseconds
+  //   const startTime = performance.now();
+  //   const initialYPosition = this.cube.position.y; // Store the initial Y position
+  //   const targetYPosition = initialYPosition - 2; // Cube will move down by 2 units
+
+  //   const animate = () => {
+  //     const currentTime = performance.now();
+  //     const elapsed = currentTime - startTime;
+
+  //     if (elapsed < duration) {
+  //       // Spin the cube faster
+  //       // this.cube.rotation.x += 0.1;
+  //       this.cube.rotation.y += 0.05;
+
+  //       // Smoothly move the cube down
+  //       this.cube.position.y = initialYPosition - (elapsed / duration) * 2;
+
+  //       requestAnimationFrame(animate);
+  //     } else {
+  //       // Ensure the cube stays at the final position
+  //       this.cube.rotation.x = Math.round(this.cube.rotation.x * 100) / 100;
+  //       this.cube.rotation.y = Math.round(this.cube.rotation.y * 100) / 100;
+  //       this.cube.position.y = targetYPosition;
+
+
+  //       this.isCubeInDownPosition = true;
+
+  //     }
+  //   };
+
+  //   animate();
+  // }
+
+
+  // private updateTextToAboutMe(): void {
+  //   const aboutText = `ABOUT ME\nI am a web developer with X years of coding experience.\nI specialize in creating amazing web applications!`;
+  //   this.textMesh.geometry = new TextGeometry(aboutText);
+  //   this.textMesh.geometry.center();
+  // }
 
   private animate(): void {
     requestAnimationFrame(this.animate.bind(this));
 
     if (!this.isDragging) {
-      this.cube.rotation.x += 0.005;
-      this.cube.rotation.y += 0.005;
+      this.cube.rotation.x += 0.004;
+      this.cube.rotation.y += 0.006;
     }
 
     this.renderer.render(this.scene, this.camera);
